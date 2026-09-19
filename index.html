@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flappy Bee Space Version</title>
+    
+    <!-- Memanggil file manifest.json asli sesuai syarat PWA -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4a90e2">
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background-color: #050510;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            font-family: sans-serif;
+            color: white;
+        }
+        
+        /* Gaya Tampilan Kotak Login / Daftar */
+        .auth-container {
+            background: rgba(16, 16, 48, 0.9);
+            padding: 30px;
+            border-radius: 15px;
+            border: 2px solid #4a90e2;
+            box-shadow: 0 0 20px rgba(74, 144, 226, 0.5);
+            width: 90%;
+            max-width: 360px;
+            text-align: center;
+        }
+        .auth-container h2 { margin-bottom: 20px; color: #4a90e2; }
+        .auth-container input {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 8px;
+            border: 1px solid #333;
+            background: #000;
+            color: white;
+            font-size: 16px;
+        }
+        .auth-container button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 15px;
+            border-radius: 8px;
+            border: none;
+            background: #4a90e2;
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .auth-container button:hover { background: #357abd; }
+        .auth-container p { margin-top: 15px; font-size: 14px; color: #aaa; }
+        .auth-container span { color: #4a90e2; cursor: pointer; text-decoration: underline; }
+
+        /* Gaya UI Game Canvas */
+        .game-wrapper {
+            display: none;
+            position: relative;
+        }
+        canvas {
+            border: 4px solid #333;
+            background: radial-gradient(circle, #101030 0%, #000000 100%);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            max-width: 100%;
+            max-height: 100vh;
+        }
+
+        /* Tombol Keluar (Log Out) */
+        #logoutBtn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            padding: 8px 15px;
+            background: #ff4a4a;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 10;
+        }
+        #logoutBtn:hover { background: #cc3b3b; }
+    </style>
+</head>
+<body>
+
+    <!-- 1. HALAMAN AUTENTIKASI (LOGIN / DAFTAR) -->
+    <div id="authBox" class="auth-container">
+        <h2 id="authTitle">Masuk Game</h2>
+        <input type="email" id="emailInput" placeholder="Masukkan Email" required>
+        <input type="password" id="passwordInput" placeholder="Masukkan Password" required>
+        <button id="authSubmitBtn" onclick="handleAuth()">Masuk</button>
+        <p id="authSwitchText">Belum punya akun? <span onclick="toggleAuthMode()">Daftar di sini</span></p>
+    </div>
+
+    <!-- 2. HALAMAN UTAMA GAME -->
+    <div id="gameWrapper" class="game-wrapper">
+        <button id="logoutBtn" onclick="logout()">Keluar</button>
+        <canvas id="gameCanvas" width="400" height="600"></canvas>
+    </div>
+
+<script>
+// Manajemen Akun & Autentikasi
+let isLoginMode = true;
+let currentUser = null;
+
+function toggleAuthMode() {
+    isLoginMode = !isLoginMode;
+    const title = document.getElementById("authTitle");
+    const btn = document.getElementById("authSubmitBtn");
+    const switchText = document.getElementById("authSwitchText");
+
+    if (isLoginMode) {
+        title.innerText = "Masuk Game";
+        btn.innerText = "Masuk";
+        switchText.innerHTML = "Belum punya akun? <span onclick='toggleAuthMode()'>Daftar di sini</span>";
+    } else {
+        title.innerText = "Daftar Akun Baru";
+        btn.innerText = "Daftar";
+        switchText.innerHTML = "Sudah punya akun? <span onclick='toggleAuthMode()'>Login di sini</span>";
+    }
+}
+
+function handleAuth() {
+    const email = document.getElementById("emailInput").value.trim();
+    const password = document.getElementById("passwordInput").value.trim();
+
+    if (!email || !password) {
+        alert("Harap isi semua kolom!");
+        return;
+    }
+
+    if (isLoginMode) {
+        // Proses Log In
+        const savedPassword = localStorage.getItem(email);
+        if (savedPassword && savedPassword === password) {
+            currentUser = email;
+            startGameSession();
+        } else {
+            alert("Email atau password salah!");
+        }
+    } else {
+        // Proses Daftar (Sign Up)
+        if (localStorage.getItem(email)) {
+            alert("Email ini sudah terdaftar!");
+        } else {
+            localStorage.setItem(email, password);
+            alert("Pendaftaran berhasil! Silakan masuk.");
+            toggleAuthMode();
+        }
+    }
+}
+
+function startGameSession() {
+    document.getElementById("authBox").style.display = "none";
+    document.getElementById("gameWrapper").style.display = "block";
+    
+    // Muat skor tertinggi khusus akun ini
+    highScore = parseInt(localStorage.getItem(currentUser + "_highscore")) || 0;
+    gamePlaying = false;
+}
+
+function logout() {
+    currentUser = null;
+    gamePlaying = false;
+    document.getElementById("emailInput").value = "";
+    document.getElementById("passwordInput").value = "";
+    document.getElementById("gameWrapper").style.display = "none";
+    document.getElementById("authBox").style.display = "block";
+}
+
+
+// --- SISTEM ENGINE GAME ---
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+let gamePlaying = false;
+let score = 0;
+let highScore = 0;
+
+let beeY = 300;
+let beeVelocity = 0;
+const gravity = 0.4;
+const jump = -7;
+
+let earthX = 450;
+let earthY = 300;
+const earthRadius = 40;
+let earthSpeed = 4;
+
+let stars = Array.from({length: 30}, () => ({
+    x: Math.random() * canvas.width,
+    y: Math.random() * canvas.height,
+    size: Math.random() * 2
+}));
+
+function draw() {
+    ctx.fillStyle = "#050515";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#ffffff";
+    stars.forEach(star => {
+        ctx.fillRect(star.x, star.y, star.size, star.size);
+        if (gamePlaying) star.x -= 0.5;
+        if (star.x < 0) star.x = canvas.width;
+    });
+
+    ctx.font = "35px sans-serif";
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "center";
+    ctx.fillText("🐝", 100, beeY);
+
+    ctx.font = "75px sans-serif";
+    ctx.fillText("🌍", earthX, earthY);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 24px sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText(`Skor: ${score}`, 20, 40);
+    ctx.textAlign = "right";
+    ctx.fillText(`Tertinggi: ${highScore}`, canvas.width - 20, 40);
+
+    if (!gamePlaying && currentUser) {
+        ctx.fillStyle = "rgba(0,0,0,0.6)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#ffffff";
+        ctx.textAlign = "center";
+        ctx.font = "bold 24px sans-serif";
+        ctx.fillText("FLAPPY BEE SPACE", canvas.width / 2, 240);
+        ctx.font = "16px sans-serif";
+        ctx.fillStyle = "#4a90e2";
+        ctx.fillText(`Pilot: ${currentUser.split('@')[0]}`, canvas.width / 2, 280);
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText("Tekan SPASI atau SENTUH untuk Mulai", canvas.width / 2, 340);
+    }
+}
+
+function update() {
+    if (!gamePlaying) return;
+
+    beeVelocity += gravity;
+    beeY += beeVelocity;
+
+    if (beeY > canvas.height - 20 || beeY < 20) {
+        gameOver();
+    }
+
+    earthX -= earthSpeed;
+    if (earthX < -50) {
+        earthX = canvas.width + 50;
+        earthY = Math.random() * (canvas.height - 200) + 100;
+        score++;
+        if (score % 5 === 0) earthSpeed += 0.5;
+    }
+
+    let distX = 100 - earthX;
+    let distY = beeY - earthY;
+    let distance = Math.sqrt(distX * distX + distY * distY);
+
+    if (distance < earthRadius + 15) {
+        gameOver();
+    }
+}
+
+function action() {
+    if (!currentUser) return; // Mencegah main sebelum login
+    
+    if (!gamePlaying) {
+        gamePlaying = true;
+        score = 0;
+        beeY = 300;
+        beeVelocity = 0;
+        earthX = canvas.width + 50;
+        earthSpeed = 4;
+    } else {
+        beeVelocity = jump;
+    }
+}
+
+function gameOver() {
+    gamePlaying = false;
+    if (score > highScore) {
+        highScore = score;
+        // Simpan skor tertinggi khusus untuk email yang sedang login
+        localStorage.setItem(currentUser + "_highscore", highScore);
+    }
+}
+
+window.addEventListener("keydown", (e) => { if (e.code === "Space") action(); });
+canvas.addEventListener("touchstart", (e) => { e.preventDefault(); action(); }, {passive: false});
+canvas.addEventListener("mousedown", (e) => {
+    // Mencegah klik tombol keluar memicu lebah lompat
+    if(e.target.id !== "logoutBtn") action(); 
+});
+
+function gameLoop() {
+    update();
+    draw();
+    requestAnimationFrame(gameLoop);
+}
+gameLoop();
+
+// Registrasi sw.js secara resmi
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js')
+    .then(() => console.log("Service Worker Aktif!"))
+    .catch(err => console.log("Gagal: ", err));
+}
+</script>
+</body>
+</html>
+
