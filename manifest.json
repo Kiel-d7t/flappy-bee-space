@@ -1,0 +1,15 @@
+{
+  "name": "Flappy Bee Space",
+  "short_name": "FlappyBee",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#4a90e2",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://w3.org' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐝</text></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}
